@@ -23,12 +23,11 @@ class UnityEnv(gym.Env):
     https://github.com/openai/multiagent-particle-envs
     """
 
-    def __init__(self, environment_filename: str, worker_id=0, use_visual=False, multiagent=False):
+    def __init__(self, environment_filename: str, worker_id=0, multiagent=False):
         """
         Environment initialization
         :param environment_filename: The UnityEnvironment path or file to be wrapped in the gym.
         :param worker_id: Worker number for environment.
-        :param use_visual: Whether to use visual observation or vector observation.
         :param multiagent: Whether to run in multi-agent mode (lists of obs, reward, done).
         """
         self._env = UnityEnvironment(environment_filename, worker_id)
@@ -46,10 +45,8 @@ class UnityEnv(gym.Env):
         self.brain_name = self._env.external_brain_names[0]
         brain = self._env.brains[self.brain_name]
 
-        if use_visual and brain.number_visual_observations == 0:
-            raise UnityGymException("`use_visual` was set to True, however there are no"
-                                    " visual observations as part of this environment.")
-        self.use_visual = brain.number_visual_observations >= 1 and use_visual
+        if brain.number_visual_observations >= 1:
+            self.is_visual = True
 
         if brain.number_visual_observations > 1:
             logger.warning("The environment contains more than one visual observation. "
@@ -75,7 +72,7 @@ class UnityEnv(gym.Env):
             self._action_space = spaces.Box(-high, high, dtype=np.float32)
         high = np.array([np.inf] * brain.vector_observation_space_size)
         self.action_meanings = brain.vector_action_descriptions
-        if self.use_visual:
+        if self.is_visual:
             if brain.camera_resolutions[0]["blackAndWhite"]:
                 depth = 1
             else:
@@ -140,7 +137,7 @@ class UnityEnv(gym.Env):
         return obs, reward, done, info
 
     def _single_step(self, info):
-        if self.use_visual:
+        if self.is_visual:
             self.visual_obs = info.visual_observations[0][0, :, :, :]
             default_observation = self.visual_obs
         else:
@@ -151,7 +148,7 @@ class UnityEnv(gym.Env):
             "brain_info": info}
 
     def _multi_step(self, info):
-        if self.use_visual:
+        if self.is_visual:
             self.visual_obs = info.visual_observations
             default_observation = self.visual_obs
         else:
